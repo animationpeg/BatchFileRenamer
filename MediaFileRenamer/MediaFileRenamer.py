@@ -4,7 +4,7 @@ import re
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem,
-    QCheckBox
+    QCheckBox, QAbstractItemView
 )
 from PyQt5.QtCore import Qt
 
@@ -19,22 +19,31 @@ def clean_filename(filename):
 
     # Extract season/episode pattern like S01E01 or S01E01E02
     match = re.search(r'(S\d{2}E\d{2}(?:E\d{2})?)', name, re.IGNORECASE)
-    season_episode = match.group(1) if match else ""
+    season_episode = match.group(1) if match else None
 
     # Extract resolution (720p, 1080p, etc.)
     res_match = re.search(r'(\d{3,4}p)', name, re.IGNORECASE)
-    resolution = res_match.group(1) if res_match else ""
+    resolution = res_match.group(1) if res_match else None
 
     # Extract title (everything else before S##E##)
-    title = name.split(season_episode)[0].strip()
+    if season_episode:
+        title = name.split(season_episode)[0].strip()
+    else:
+        title = name.strip()
 
     # Clean extra spaces
     title = re.sub(r'\s+', ' ', title)
 
-    # Build new filename
-    new_name = f"{title} {season_episode} - {resolution}{ext}"
+    parts = [title]
 
-    return new_name.strip()
+    if season_episode:
+        parts.append(season_episode)
+
+    if resolution:
+        parts.append(f"- {resolution}")
+
+    # Build and return new filename
+    return " ".join(parts) + ext
 
 class RenamerApp(QWidget):
     def __init__(self):
@@ -54,7 +63,7 @@ class RenamerApp(QWidget):
         self.table.setColumnCount(2)
         self.table.setHorizontalHeaderLabels(["Original Name", "New Name"])
         self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setEditTriggers(QTableWidget.doubleClicked)
+        self.table.setEditTriggers(QAbstractItemView.DoubleClicked)
 
         # DRY RUN checkbox
         self.dry_run_checkbox = QCheckBox("Dry Run (preview only)")
