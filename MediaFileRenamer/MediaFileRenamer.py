@@ -4,53 +4,16 @@ import re
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem,
-    QCheckBox, QAbstractItemView
+    QCheckBox, QAbstractItemView, QLineEdit
 )
 from PyQt5.QtCore import Qt
-
-def clean_filename(filename):
-    name, ext = os.path.splitext(filename)
-
-    # Replace dots with spaces
-    name = name.replace('.', ' ')
-
-    # Replace underscores with spaces
-    name = name.replace('_', ' ')
-
-    # Extract season/episode pattern like S01E01 or S01E01E02
-    match = re.search(r'(S\d{2}E\d{2}(?:E\d{2})?)', name, re.IGNORECASE)
-    season_episode = match.group(1) if match else None
-
-    # Extract resolution (720p, 1080p, etc.)
-    res_match = re.search(r'(\d{3,4}p)', name, re.IGNORECASE)
-    resolution = res_match.group(1) if res_match else None
-
-    # Extract title (everything else before S##E##)
-    if season_episode:
-        title = name.split(season_episode)[0].strip()
-    else:
-        title = name.strip()
-
-    # Clean extra spaces
-    title = re.sub(r'\s+', ' ', title)
-
-    parts = [title]
-
-    if season_episode:
-        parts.append(season_episode)
-
-    if resolution:
-        parts.append(f"- {resolution}")
-
-    # Build and return new filename
-    return " ".join(parts) + ext
 
 class RenamerApp(QWidget):
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("Batch Renamer")
-        self.setGeometry(100, 100, 500, 400)
+        self.setGeometry(100, 100, 800, 500)
 
         layout = QVBoxLayout()
 
@@ -58,12 +21,18 @@ class RenamerApp(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setStyleSheet("border: 2px dashed gray; padding: 20px;")
 
+        # Create input text box
+        self.template_input = QLineEdit()
+        self.template_input.setText("{title} {season_episode} - {resolution}")
+
+        layout.addWidget(self.template_input)
+
         # Create table
         self.table = QTableWidget()
         self.table.setColumnCount(2)
         self.table.setHorizontalHeaderLabels(["Original Name", "New Name"])
         self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setEditTriggers(QAbstractItemView.DoubleClicked)
+        self.table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed)
 
         # DRY RUN checkbox
         self.dry_run_checkbox = QCheckBox("Dry Run (preview only)")
@@ -79,6 +48,8 @@ class RenamerApp(QWidget):
         layout.addWidget(self.rename_button)
 
         self.setLayout(layout)
+
+        self.template_input.textChanged.connect(self.load_files)
 
         self.setAcceptDrops(True)
         self.folder = None
@@ -101,11 +72,15 @@ class RenamerApp(QWidget):
     def load_files(self):
         self.table.setRowCount(0)
 
+        template = self.template_input.text()
+
+
         for file in os.listdir(self.folder):
-            if not file.lower().endswith(('.mkv', '.mp4', '.avi')):
+            if not file.lower().endswith(('.mkv', '.mp4', '.avi', '.png', '.jpg')):
                 continue
 
-            new_name = clean_filename(file)
+            tokens = extract_tokens(file)
+            new_name = build_filename(tokens, template)
 
             row = self.table.rowCount()
             self.table.insertRow(row)
@@ -143,6 +118,46 @@ class RenamerApp(QWidget):
         if not dry_run:
             self.load_files()
 
+def extract_tokens(filename):
+    name, ext = os.path.splitext(filename)
+
+    tokens = {}
+    tokens["ext"] = ext
+
+    # Normalise
+    clean = name.replace('.', ' ')
+    clean = clean.replace('_', ' ')
+
+    # Season/Episode
+    match = re.search(r'(S\d{2}E\d{2}(?:E\d{2})?)', clean, re.IGNORECASE)
+    tokens["season_episode"] = match.group(1) if match else ""
+
+    # Resolution
+    res = re.search(r'(\d{3,4}p)', clean)
+    tokens["resolution"] = res.group(1) if res else ""
+
+    # Title (fallback logic)
+    if tokens["season_episode"]:
+        tokens["title"] = clean.split(tokens["season_episode"])[0].strip()
+    else:
+        tokens["title"] = clean.strip()
+
+    # Sequence number (NEW)
+    num_match = re.match(r'^\d+', clean)
+    tokens["index"] = num_match.group(0) if num_match else ""
+
+    return tokens
+
+def build_filename(tokens, template):
+    result = template
+
+    for key, value in tokens.items():
+        result = result.replace(f"{{{key}}}", value)
+
+    # Clean extra spaces
+    result = re.sub(r'\s+', ' ', result).strip()
+
+    return result + tokens["ext"]
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
