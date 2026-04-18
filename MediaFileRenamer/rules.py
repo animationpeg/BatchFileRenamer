@@ -48,7 +48,6 @@ def extract_tokens(filename, index=None):
 
     return tokens
 
-
 def build_filename(tokens, template):
     result = template
 

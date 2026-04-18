@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView
 )
 from PyQt5.QtCore import Qt
-from engine import get_all_tokens, process_files, rename_files
+from engine import get_all_tokens, process_files, rename_files, get_default_template, detect_pattern
 import os
 
 
@@ -63,10 +63,12 @@ class RenamerApp(QWidget):
             if f.lower().endswith((".mp4", ".mkv", ".avi", ".png", ".jpg"))
         ]
 
-        # Optional: auto-generate template from tokens
-        tokens = get_all_tokens(self.files)
-        if tokens and not self.template_input.text().strip():
-            self.template_input.setText(" ".join(f"{{{t}}}" for t in tokens))
+        pattern = detect_pattern(self.files)
+        self.pattern = pattern
+
+        if not self.template_input.text().strip():
+            template = get_default_template(pattern)
+            self.template_input.setText(template)
 
         self.update_preview_files()
     # -------------------------
