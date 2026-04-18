@@ -10,37 +10,41 @@ def extract_tokens(filename, index=None):
 
     tokens = {
         "ext": ext,
-        "raw": clean
+        "raw": clean,
+        "season": "",
+        "episode": "",
+        "episode2": "",
+        "resolution": "",
+        "title": "",
+        "index": str(index) if index is not None else ""
     }
 
     # -----------------------------
     # EXISTING PATTERNS
     # -----------------------------
 
+    #match = re.search(r'S(\d{2})E(\d{2})(?:E(\d{2}))?', clean, re.IGNORECASE)
     # Season & Episode tokens
-    match = re.search(r'S(\d{2})E(\d{2})(?:E(\d{2}))?', clean, re.IGNORECASE)
-    tokens["season"] = match.group(1) if match else ""
-    tokens["episode"] = match.group(2) if match else ""
-    tokens["episode2"] = match.group(3) if match and match.group(3) else ""
+    clean_title = clean
 
-    # Known Resolution formats
-    res = re.search(r'(\d{3,4}p)', clean)
-    tokens["resolution"] = res.group(1) if res else ""
+    se_match = re.search(r'S(\d{2})E(\d{2})(?:E(\d{2}))?', clean_title, re.IGNORECASE)
+    if se_match:
+        tokens["season"] = se_match.group(1)
+        tokens["episode"] = se_match.group(2)
+        tokens["episode2"] = se_match.group(3) if se_match.group(3) else ""
 
-    # Title extraction (everything before known tokens)
-    match = re.search(r'(S\d{2}E\d{2}(?:E\d{2})?)', clean, re.IGNORECASE)
-    if match:
-        base = clean[:match.start()]
-    else:
-        base = clean
-    base = base.strip()
+        # Remove full match from title
+        clean_title = clean_title.replace(se_match.group(0), '')
 
-    tokens["title"] = re.sub(r'\s+', ' ', base)
+    # Resolution token
+    res_match = re.search(r'(\d{3,4}p)', clean_title, re.IGNORECASE)
 
-    # -----------------------------
-    # SEQUENTIAL INDEX
-    # -----------------------------
-    tokens["index"] = str(index) if index is not None else ""
+    if res_match:
+        tokens["resolution"] = res_match.group(1)
+        clean_title = clean_title.replace(res_match.group(1), '')
+
+    # Title extraction - everything that remains
+    tokens["title"] = re.sub(r'\s+', ' ', clean_title).strip()
 
     return tokens
 

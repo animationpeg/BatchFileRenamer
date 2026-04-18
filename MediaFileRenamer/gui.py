@@ -27,7 +27,7 @@ class RenamerApp(QWidget):
         self.template_input.textChanged.connect(self.update_preview_files)
 
         # The table
-        self.label = DropLabel(self)
+        self.label = DropLabel(self.load_folder, self)
         self.table = QTableWidget()
         self.table.setColumnCount(2)
         self.table.setColumnWidth(0, int(window_width / 2 - 20))
@@ -115,8 +115,9 @@ class RenamerApp(QWidget):
 
 
 class DropLabel(QLabel):
-    def __init__(self, parent=None):
+    def __init__(self, drop_callback, parent=None):
         super().__init__(parent)
+        self.drop_callback = drop_callback
         self.setText("Drag & drop a folder here")
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet("""
@@ -146,8 +147,8 @@ class DropLabel(QLabel):
 
         path = urls[0].toLocalFile()
 
-        
-        self.parent().load_folder(path)
+        if os.path.isdir(path):
+            self.drop_callback(path)
 
         event.acceptProposedAction()
 
