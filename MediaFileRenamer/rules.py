@@ -134,3 +134,11 @@ def build_filename(tokens, template):
 
     result = re.sub(r'\s*-\s*$', '', result)
     return result.strip() + tokens.get("ext", "")
+
+# Sorting Key
+def natural_sort_key(filename: str):
+    # Split filename into a list of str/int chunks so that numeric segments are compared by value rather than lexicographically.
+    return [
+        int(chunk) if chunk.isdigit() else chunk.lower()
+        for chunk in re.split(r'(\d+)', filename)
+        ]

@@ -8,7 +8,7 @@ from _pytest.monkeypatch import K
 from engine import get_all_tokens, process_files, rename_files, get_default_template, detect_pattern
 import os
 
-from rules import extract_tokens
+from rules import extract_tokens, natural_sort_key
 
 
 class RenamerApp(QWidget):
@@ -150,10 +150,13 @@ class RenamerApp(QWidget):
     # Load Files
     # -------------------------
     def load_files(self):
+        # Store each loaded, compatible file
         self.files = [
             f for f in os.listdir(self.folder)
             if f.lower().endswith((".mp4", ".m4v", ".mkv", ".avi", ".png", ".jpg"))
         ]
+        # Sort files
+        self.files.sort(key=natural_sort_key)
 
         pattern = detect_pattern(self.files)
         self.pattern = pattern
@@ -165,6 +168,7 @@ class RenamerApp(QWidget):
         self.populate_token_input_fields()
         self.highlight_token_input_fields()
         self.update_preview_files()
+
     # -------------------------
     # Update Preview Files
     # -------------------------
