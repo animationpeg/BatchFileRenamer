@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView, QScrollArea
 )
 from PyQt5.QtCore import Qt
+from _pytest.monkeypatch import K
 from engine import get_all_tokens, process_files, rename_files, get_default_template, detect_pattern
 import os
 
@@ -114,7 +115,7 @@ class RenamerApp(QWidget):
         self.setLayout(main_layout)
         self.setAcceptDrops(True)
     # -------------------------
-    # Function to insert token text into template field
+    # Insert token text into template field
     # -------------------------
     def populate_token_input_fields(self):
         if not hasattr(self, "files") or not self.files:
@@ -124,6 +125,19 @@ class RenamerApp(QWidget):
         for key, input_field in self.token_inputs.items(): # Check every input field of the token_panel widget
             value = sample_tokens.get(key, "")
             input_field.setText(value)
+    # -------------------------
+    # Highlight token fields with found tokens
+    # -------------------------
+    def highlight_token_input_fields(self):
+        if not hasattr(self, "files") or not self.files:
+            return
+        sample_tokens = extract_tokens(self.files[0], index=1)
+
+        for key, input_field in self.token_inputs.items():
+            if sample_tokens.get(key):
+                input_field.setStyleSheet("background-color: #e6ffe6;") # Light green
+            else:
+                input_field.setStyleSheet("background-color: #f0f0f0;") # Grey
     # -------------------------
     # Function to insert token text into template field
     # -------------------------
@@ -147,6 +161,7 @@ class RenamerApp(QWidget):
             self.template_input.setText(template)
 
         self.populate_token_input_fields()
+        self.highlight_token_input_fields()
         self.update_preview_files()
     # -------------------------
     # Update Preview Files
