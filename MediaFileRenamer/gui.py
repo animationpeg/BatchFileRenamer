@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTableWidget,
+    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QTableWidget,
     QTableWidgetItem, QPushButton, QCheckBox, QLineEdit,
-    QAbstractItemView
+    QAbstractItemView, QScrollArea
 )
 from PyQt5.QtCore import Qt
 from engine import get_all_tokens, process_files, rename_files, get_default_template, detect_pattern
@@ -9,17 +9,37 @@ import os
 
 
 class RenamerApp(QWidget):
+
+
     def __init__(self):
         super().__init__()
 
         self.folder = None
+
+        # Available Tokens
+        self.available_tokens = [
+            "title",
+            "season",
+            "episode",
+            "episode2",
+            "resolution",
+            "year",
+            "index"
+        ]
 
         # Define the window
         window_width = 800
         self.setWindowTitle("Batch Renamer")
         self.setGeometry(100, 100, window_width, 500)
 
-        layout = QVBoxLayout()
+        # Layout
+        main_layout = QHBoxLayout()
+        # Left Side: token controls
+        self.token_panel = QVBoxLayout()
+        token_widget = QWidget()
+        token_widget.setLayout(self.token_panel)
+        # Right Side: file naming
+        right_layout = QVBoxLayout()
 
         # Input text box for the renaming template
         self.template_input = QLineEdit()
@@ -43,17 +63,61 @@ class RenamerApp(QWidget):
         self.rename_button = QPushButton("Rename")
         self.rename_button.clicked.connect(self.rename_files)
 
-        # Add all the widgets to the layout
-        layout.addWidget(self.label)
-        layout.addWidget(QLabel("Template"))
-        layout.addWidget(self.template_input)
-        layout.addWidget(self.table)
-        layout.addWidget(self.dry_run_checkbox)
-        layout.addWidget(self.rename_button)
+        # -----------------
+        # Build the layout
+        # -----------------
+        # Add all the RIGHT SIDE widgets
+        right_layout.addWidget(self.label)
+        right_layout.addWidget(QLabel("Template"))
+        right_layout.addWidget(self.template_input)
+        right_layout.addWidget(self.table)
+        right_layout.addWidget(self.dry_run_checkbox)
+        right_layout.addWidget(self.rename_button)
 
-        self.setLayout(layout)
+
+        # Scroll box for Token widget
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(token_widget)
+
+        # Dynamically build all the LEFT SIDE rows
+        self.token_panel.addWidget(QLabel("Tokens"))
+        self.token_inputs = {}
+        for token in self.available_tokens:
+            row = QHBoxLayout()
+
+            label = QLabel(token)
+            input_field = QLineEdit()
+            button = QPushButton("+")
+            button.setFixedWidth(30)
+
+            # Store input for later use
+            self.token_inputs[token] = input_field
+
+            # Button inserts token into template
+            button.clicked.connect(lambda _, t=token: self.insert_token(t))
+
+            # Add row to the layout
+            row.addWidget(label)
+            row.addWidget(input_field)
+            row.addWidget(button)
+
+            self.token_panel.addLayout(row)
+        self.token_panel.addStretch()
+
+        # Add LEFT and RIGHT side panels to main layout
+        main_layout.addWidget(scroll, 1) # Left, (narrow)
+        main_layout.addLayout(right_layout, 3)     # Right, (wide)
+
+        self.setLayout(main_layout)
         self.setAcceptDrops(True)
-
+    
+    # -------------------------
+    # Function to insert token text into template field
+    # -------------------------
+    def insert_token(self, token):
+        current = self.template_input.text()
+        self.template_input.setText(current + f"{{{token}}}")
     # -------------------------
     # Load Files
     # -------------------------
