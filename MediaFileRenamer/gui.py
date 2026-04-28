@@ -25,8 +25,10 @@ class RenamerApp(QWidget):
             "season",
             "episode",
             "episode2",
+            "episode_title",
             "resolution",
             "year",
+            "edition",
             "index"
         ]
 
@@ -197,7 +199,7 @@ class RenamerApp(QWidget):
         rename_files(
             self.folder,
             mappings,
-            dry_run=self.dry_run.isChecked()
+            dry_run=self.dry_run_checkbox.isChecked()
         )
 
     def load_folder(self, path):
