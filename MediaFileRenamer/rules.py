@@ -16,6 +16,7 @@ def extract_tokens(filename, index=None):
         "episode2": "",
         "resolution": "",
         "title": "",
+        "year": "",
         "index": str(index) if index is not None else ""
     }
 
@@ -23,7 +24,6 @@ def extract_tokens(filename, index=None):
     # EXISTING PATTERNS
     # -----------------------------
 
-    #match = re.search(r'S(\d{2})E(\d{2})(?:E(\d{2}))?', clean, re.IGNORECASE)
     # Season & Episode tokens
     clean_title = clean
 
@@ -38,10 +38,15 @@ def extract_tokens(filename, index=None):
 
     # Resolution token
     res_match = re.search(r'(\d{3,4}p)', clean_title, re.IGNORECASE)
-
     if res_match:
         tokens["resolution"] = res_match.group(1)
         clean_title = clean_title.replace(res_match.group(1), '')
+
+    # Year token, if found in parentheses or square brackets: () or []
+    year_match = re.search(r'[\(\[]?(19\d{2}|20\d{2})[\)\]]?', clean_title)
+    if year_match:
+        tokens["year"] = year_match.group(1)
+        clean_title = clean_title.replace(year_match.group(0), '')
 
     # Title extraction - everything that remains
     tokens["title"] = re.sub(r'\s+', ' ', clean_title).strip()

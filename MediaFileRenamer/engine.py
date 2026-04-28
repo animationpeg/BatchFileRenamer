@@ -5,6 +5,8 @@ from patterns import PatternType
 def get_default_template(pattern):
     if pattern == PatternType.TV:
         return "{title} S{season}E{episode}"
+    elif pattern == PatternType.FILM:
+        return "{title} {year}"
     elif pattern == PatternType.SEQUENCE:
         return "{index} {title}"
     elif pattern == PatternType.IMAGE_SEQUENCE:

@@ -60,7 +60,7 @@ class RenamerApp(QWidget):
     def load_files(self):
         self.files = [
             f for f in os.listdir(self.folder)
-            if f.lower().endswith((".mp4", ".mkv", ".avi", ".png", ".jpg"))
+            if f.lower().endswith((".mp4", ".m4v", ".mkv", ".avi", ".png", ".jpg"))
         ]
 
         pattern = detect_pattern(self.files)
