@@ -7,6 +7,8 @@ from PyQt5.QtCore import Qt
 from engine import get_all_tokens, process_files, rename_files, get_default_template, detect_pattern
 import os
 
+from rules import extract_tokens
+
 
 class RenamerApp(QWidget):
 
@@ -111,7 +113,17 @@ class RenamerApp(QWidget):
 
         self.setLayout(main_layout)
         self.setAcceptDrops(True)
-    
+    # -------------------------
+    # Function to insert token text into template field
+    # -------------------------
+    def populate_token_input_fields(self):
+        if not hasattr(self, "files") or not self.files:
+            return
+        sample_tokens = extract_tokens(self.files[0], index=1)
+
+        for key, input_field in self.token_inputs.items(): # Check every input field of the token_panel widget
+            value = sample_tokens.get(key, "")
+            input_field.setText(value)
     # -------------------------
     # Function to insert token text into template field
     # -------------------------
@@ -134,6 +146,7 @@ class RenamerApp(QWidget):
             template = get_default_template(pattern)
             self.template_input.setText(template)
 
+        self.populate_token_input_fields()
         self.update_preview_files()
     # -------------------------
     # Update Preview Files
