@@ -5,10 +5,10 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from _pytest.monkeypatch import K
-from engine import get_all_tokens, process_files, rename_files, get_default_template, detect_pattern
+from engine import get_all_tokens, get_sample_tokens, process_files, rename_files, get_default_template, detect_pattern
 import os
 
-from rules import extract_tokens, natural_sort_key
+from rules import AVAILABLE_TOKENS, SUPPORTED_EXTENSIONS, extract_tokens, natural_sort_key
 
 
 class RenamerApp(QWidget):
@@ -18,19 +18,6 @@ class RenamerApp(QWidget):
         super().__init__()
 
         self.folder = None
-
-        # Available Tokens
-        self.available_tokens = [
-            "title",
-            "season",
-            "episode",
-            "episode2",
-            "episode_title",
-            "resolution",
-            "year",
-            "edition",
-            "index"
-        ]
 
         # Define the window
         window_width = 800
@@ -79,7 +66,6 @@ class RenamerApp(QWidget):
         right_layout.addWidget(self.dry_run_checkbox)
         right_layout.addWidget(self.rename_button)
 
-
         # Scroll box for Token widget
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -88,17 +74,14 @@ class RenamerApp(QWidget):
         # Dynamically build all the LEFT SIDE rows
         self.token_panel.addWidget(QLabel("Tokens"))
         self.token_inputs = {}
-        for token in self.available_tokens:
+        for token in AVAILABLE_TOKENS:
             row = QHBoxLayout()
-
             label = QLabel(token)
             input_field = QLineEdit()
             button = QPushButton("+")
             button.setFixedWidth(30)
-
             # Store input for later use
             self.token_inputs[token] = input_field
-
             # Button inserts token into template
             button.clicked.connect(lambda _, t=token: self.insert_token(t))
 
@@ -117,29 +100,19 @@ class RenamerApp(QWidget):
         self.setLayout(main_layout)
         self.setAcceptDrops(True)
     # -------------------------
-    # Insert token text into template field
+    # Refresh token input fields with found tokens, and highlight the fields in different colours
     # -------------------------
-    def populate_token_input_fields(self):
-        if not hasattr(self, "files") or not self.files:
-            return
-        sample_tokens = extract_tokens(self.files[0], index=1)
-
-        for key, input_field in self.token_inputs.items(): # Check every input field of the token_panel widget
-            value = sample_tokens.get(key, "")
-            input_field.setText(value)
-    # -------------------------
-    # Highlight token fields with found tokens
-    # -------------------------
-    def highlight_token_input_fields(self):
-        if not hasattr(self, "files") or not self.files:
-            return
-        sample_tokens = extract_tokens(self.files[0], index=1)
-
+    def refresh_token_panel(self):
+        # Populate and highlight token fields based on first loaded file.
+        sample_tokens = get_sample_tokens(self.files)
         for key, input_field in self.token_inputs.items():
-            if sample_tokens.get(key):
+            value = sample_tokens(value)
+            input_field.setText(value)
+            if value:
                 input_field.setStyleSheet("background-color: #e6ffe6;") # Light green
             else:
                 input_field.setStyleSheet("background-color: #f0f0f0;") # Grey
+
     # -------------------------
     # Function to insert token text into template field
     # -------------------------
@@ -153,7 +126,7 @@ class RenamerApp(QWidget):
         # Store each loaded, compatible file
         self.files = [
             f for f in os.listdir(self.folder)
-            if f.lower().endswith((".mp4", ".m4v", ".mkv", ".avi", ".png", ".jpg"))
+            if f.lower().endswith(SUPPORTED_EXTENSIONS)
         ]
         # Sort files
         self.files.sort(key=natural_sort_key)
@@ -162,11 +135,9 @@ class RenamerApp(QWidget):
         self.pattern = pattern
 
         if not self.template_input.text().strip():
-            template = get_default_template(pattern)
-            self.template_input.setText(template)
+            self.template_input.setText(get_default_template(pattern))
 
-        self.populate_token_input_fields()
-        self.highlight_token_input_fields()
+        self.refresh_token_panel()
         self.update_preview_files()
 
     # -------------------------

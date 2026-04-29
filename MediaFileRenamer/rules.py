@@ -1,6 +1,20 @@
 import os
 import re
 
+SUPPORTED_EXTENSIONS = (".mp4", ".m4v", ".mkv", ".avi", ".png", ".jpg")
+
+AVAILABLE_TOKENS = [
+    "title",
+    "season",
+    "episode",
+    "episode2",
+    "episode_title",
+    "resolution",
+    "year",
+    "edition",
+    "index",
+]
+
 # ---------------------------------------------------------------------------
 # Metadata signal: any token whose first hyphen-segment matches one of these
 # patterns marks the boundary between human-readable text and technical tags.
@@ -47,25 +61,18 @@ def extract_tokens(filename, index=None):
     clean = name.replace('.', ' ').replace('_', ' ')
     clean = re.sub(r'\s+', ' ', clean).strip()
 
-    tokens = {
-        "ext":              ext,
-        "raw":              clean,
-        "season":           "",
-        "episode":          "",
-        "episode2":         "",
-        "resolution":       "",
-        "title":            "",
-        "episode_title":    "",
-        "edition":          "",
-        "year":             "",
-        "index":            str(index) if index is not None else ""
-    }
+    tokens = {key: "" for key in AVAILABLE_TOKENS} # Create dicitonary of tokens from defined available tokens, set to empty strings
+    tokens.update({
+        "ext":      ext,
+        "raw":      clean,
+        "index":    str(index) if index is not None else ""
+        })
 
     # -----------------------------
     # BRANCH A: TV Episode - SxxExx is the structural anchor
     # -----------------------------
 
-    se_match = re.search(r'S(\d{2})E(\d{2})(?:E(\d{2}))?', clean, re.IGNORECASE)
+    se_match = _SE_PATTERN.search(clean)
     
     if se_match:
         tokens["season"]   = se_match.group(1)
@@ -126,13 +133,17 @@ def extract_tokens(filename, index=None):
 
     return tokens
 
-def build_filename(tokens, template):
+def build_filename(tokens: dict, template: str) -> str:
     result = template
 
     for key, value in tokens.items():
         result = result.replace(f"{{{key}}}", value)
 
-    result = re.sub(r'\s*-\s*$', '', result)
+    # Strip orphaned separators from both ends
+    result = re.sub(r'^[\s\-]+|[\s\-]+$', '', result)
+    # Collapse any internal runs of " - " that result from empty middle tokens
+    result = re.sub(r'(\s*-\s*){2,}', ' - ', result)
+
     return result.strip() + tokens.get("ext", "")
 
 # Sorting Key
