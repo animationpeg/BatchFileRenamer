@@ -1,4 +1,5 @@
 import re
+import os
 from rules import extract_tokens, build_filename
 from patterns import PatternType
 
@@ -74,17 +75,17 @@ def process_files(files, template):
     return results
 
 def rename_files(folder, mappings, dry_run=True):
-    import os
-
+    count = 0
     for old_name, new_name in mappings:
-        old_path = os.path.join(folder, old_name)
-        new_path = os.path.join(folder, new_name)
-
         if old_name == new_name:
             continue
+        old_path = os.path.join(folder, old_name)
+        new_path = os.path.join(folder, new_name)
 
         if dry_run:
             print(f"[DRY] {old_name} -> {new_name}")
         else:
             if not os.path.exists(new_path):
                 os.rename(old_path, new_path)
+        count += 1
+    return count

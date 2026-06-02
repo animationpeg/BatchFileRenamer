@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QTableWidget,
     QTableWidgetItem, QPushButton, QCheckBox, QLineEdit,
-    QAbstractItemView, QScrollArea
+    QAbstractItemView, QScrollArea, QMessageBox
 )
 from PyQt5.QtCore import Qt
 from _pytest.monkeypatch import K
@@ -162,20 +162,24 @@ class RenamerApp(QWidget):
     # Apply rename
     # -------------------------
     def rename_files(self):
-        from engine import rename_files
-
         mappings = []
-
         for row in range(self.table.rowCount()):
             old = self.table.item(row, 0).text()
             new = self.table.item(row, 1).text()
             mappings.append((old, new))
 
-        rename_files(
-            self.folder,
-            mappings,
-            dry_run=self.dry_run_checkbox.isChecked()
-        )
+        dry_run = self.dry_run_checkbox.isChecked()
+        count = rename_files(self.folder, mappings, dry_run=dry_run)
+
+        if dry_run:
+            message = f"{count} file(s) would be renamed.\n(Dry run — no changes made)"
+        else:
+            message = f"{count} file(s) successfully renamed."
+
+        QMessageBox.information(self, "Rename Complete", message)
+
+        if not dry_run:
+            self.load_files()
 
     def load_folder(self, path):
         if os.path.isdir(path):
