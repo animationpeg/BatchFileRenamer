@@ -63,11 +63,12 @@ def get_sample_tokens(files) -> dict:
         
 def process_files(files, template):
     results = []
+    episode_counter = 1
 
     for i, file in enumerate(files, start=1):
-        tokens = extract_tokens(file, index=i)
+        tokens = extract_tokens(file, index=i, episode_index=episode_counter)
+        episode_counter += 1
         new_name = build_filename(tokens, template)
-
         results.append((file, new_name))
 
     return results
