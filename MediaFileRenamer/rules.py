@@ -43,6 +43,8 @@ _BARE_EP_PATTERN = re.compile(r'(?<!\d)(\d{1,3})\s*$')
 # Detects season.episode prefix before dot normalisation destroys it
 # Matches: "01.01", "1.01", "01.1" at the start of the filename
 _SE_DOT_PATTERN = re.compile(r'^(\d{1,2})\.(\d{1,2})\s*[-–]?\s*')
+# Detects "Ep.01", "Ep. 01", "EP.1" etc. at the start of the filename
+_EP_PREFIX_PATTERN = re.compile(r'^Ep\.\s*(\d{1,3})\s*[-–]?\s*', re.IGNORECASE)
 
 def _is_metadata_token(word: str) -> bool:
     # Return True if a single word looks like a technical metadata token.
@@ -65,6 +67,7 @@ def extract_tokens(filename, index=None, episode_index=None):
 
     # Check for season.episode prefix BEFORE dot normalisation
     se_dot_match = _SE_DOT_PATTERN.match(name)
+    ep_prefix_match = _EP_PREFIX_PATTERN.match(name)
 
     clean = name.replace('.', ' ').replace('_', ' ')
     clean = re.sub(r'\s+', ' ', clean).strip()
@@ -75,11 +78,25 @@ def extract_tokens(filename, index=None, episode_index=None):
         "raw":      clean,
         "index":    str(index).zfill(2) if index is not None else ""
         })
+    # -----------------------------
+    # BRANCH D: Ep. prefix format e.g. "Ep. 01 - The Boy in the Iceberg"
+    # -----------------------------
+    if ep_prefix_match:
+        tokens["episode"] = ep_prefix_match.group(1).zfill(2)
+
+        remainder = name[ep_prefix_match.end():]
+        remainder_clean = remainder.replace('.', ' ').replace('_', ' ').strip(' -')
+        episode_title, _ = _split_at_metadata(remainder_clean)
+        tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
+
+        res_match = re.search(r'(\d{3,4}p)', remainder_clean, re.IGNORECASE)
+        if res_match:
+            tokens["resolution"] = res_match.group(1)
 
     # -----------------------------
     # BRANCH C: season.episode prefix format e.g. "01.01 Episode Name.mkv"
     # -----------------------------
-    if se_dot_match and not _SE_PATTERN.search(clean):
+    elif se_dot_match and not _SE_PATTERN.search(clean):
         tokens["season"]   = se_dot_match.group(1).zfill(2)
         tokens["episode"]  = se_dot_match.group(2).zfill(2)
 
@@ -95,37 +112,34 @@ def extract_tokens(filename, index=None, episode_index=None):
     # BRANCH A: TV Episode - SxxExx is the structural anchor
     # -----------------------------
     elif se_match := _SE_PATTERN.search(clean):
-
-        se_match = _SE_PATTERN.search(clean)
     
-        if se_match:
-            tokens["season"]   = se_match.group(1)
-            tokens["episode"]  = se_match.group(2)
-            tokens["episode2"] = se_match.group(3) or ""
+        tokens["season"]   = se_match.group(1).zfill(2)
+        tokens["episode"]  = se_match.group(2).zfill(2)
+        tokens["episode2"] = se_match.group(3).zfill(2) if se_match.group(3) else ""
 
-            left  = clean[:se_match.start()].strip(' -')
-            right = clean[se_match.end():].strip(' -')
+        left  = clean[:se_match.start()].strip(' -')
+        right = clean[se_match.end():].strip(' -')
 
-            # Left side: pull year out of brackets, the rest is the series title
-            year_match = re.search(r'[\(\[](19\d{2}|20\d{2})[\)\]]', left)
-            if year_match:
-                tokens["year"] = year_match.group(1)
-                left = left[:year_match.start()].strip(' -')
-            tokens["title"] = re.sub(r'\s+', ' ', left).strip()
+        # Left side: pull year out of brackets, the rest is the series title
+        year_match = re.search(r'[\(\[](19\d{2}|20\d{2})[\)\]]', left)
+        if year_match:
+            tokens["year"] = year_match.group(1)
+            left = left[:year_match.start()].strip(' -')
+        tokens["title"] = re.sub(r'\s+', ' ', left).strip()
 
-            # Right side: Parenthetical/bracket groups are always metadata - strip them first,
-            # then walk to find where the episode title ends.
-            right_no_parens = re.sub(r'[\(\[][^\)\]]*[\)\]]', '', right).strip(' -')
-            episode_title, _ = _split_at_metadata(right_no_parens)
-            tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
+        # Right side: Parenthetical/bracket groups are always metadata - strip them first,
+        # then walk to find where the episode title ends.
+        right_no_parens = re.sub(r'[\(\[][^\)\]]*[\)\]]', '', right).strip(' -')
+        episode_title, _ = _split_at_metadata(right_no_parens)
+        tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
 
-            # Resolution: Scan the parens-stripped right side for the resolution so that
-            # both "(1080p BluRay x265)" as well as bare "720p" are reliably found.
-            res_match = re.search(r'(\d{3,4}p)', right_no_parens, re.IGNORECASE)
-            if not res_match:  # fallback to original right for edge cases
-                res_match = re.search(r'(\d{3,4}p)', right, re.IGNORECASE)
-            if res_match:
-                tokens["resolution"] = res_match.group(1)
+        # Resolution: Scan the parens-stripped right side for the resolution so that
+        # both "(1080p BluRay x265)" as well as bare "720p" are reliably found.
+        res_match = re.search(r'(\d{3,4}p)', right_no_parens, re.IGNORECASE)
+        if not res_match:  # fallback to original right for edge cases
+            res_match = re.search(r'(\d{3,4}p)', right, re.IGNORECASE)
+        if res_match:
+            tokens["resolution"] = res_match.group(1)
     # -----------------------------
     # BRANCH B: Film - Year is the structural anchor
     # -----------------------------
