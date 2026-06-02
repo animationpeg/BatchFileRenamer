@@ -106,7 +106,7 @@ class RenamerApp(QWidget):
         # Populate and highlight token fields based on first loaded file.
         sample_tokens = get_sample_tokens(self.files)
         for key, input_field in self.token_inputs.items():
-            value = sample_tokens(value)
+            value = sample_tokens.get(key, "")
             input_field.setText(value)
             if value:
                 input_field.setStyleSheet("background-color: #e6ffe6;") # Light green
