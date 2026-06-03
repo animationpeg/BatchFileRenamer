@@ -1,7 +1,7 @@
 import os
 import re
 
-SUPPORTED_EXTENSIONS = (".mp4", ".m4v", ".mkv", ".avi", ".png", ".jpg")
+SUPPORTED_EXTENSIONS = (".mp4", ".m4v", ".mkv", ".avi", ".png", ".jpg", "xvid")
 
 AVAILABLE_TOKENS = [
     "title",
@@ -44,7 +44,7 @@ _BARE_EP_PATTERN = re.compile(r'(?<!\d)(\d{1,3})\s*$')
 # Matches: "01.01", "1.01", "01.1" at the start of the filename
 _SE_DOT_PATTERN = re.compile(r'^(\d{1,2})\.(\d{1,2})\s*[-–]?\s*')
 # Detects "Ep.01", "Ep. 01", "EP.1" etc. at the start of the filename
-_EP_PREFIX_PATTERN = re.compile(r'^Ep\.\s*(\d{1,3})\s*[-–]?\s*', re.IGNORECASE)
+_EP_PREFIX_PATTERN = re.compile(r'Ep\.\s*(\d{1,3})\s*[-–]?\s*', re.IGNORECASE)
 
 def _is_metadata_token(word: str) -> bool:
     # Return True if a single word looks like a technical metadata token.
@@ -67,7 +67,7 @@ def extract_tokens(filename, index=None, episode_index=None):
 
     # Check for season.episode prefix BEFORE dot normalisation
     se_dot_match = _SE_DOT_PATTERN.match(name)
-    ep_prefix_match = _EP_PREFIX_PATTERN.match(name)
+    ep_prefix_match = _EP_PREFIX_PATTERN.search(name)
 
     clean = name.replace('.', ' ').replace('_', ' ')
     clean = re.sub(r'\s+', ' ', clean).strip()
@@ -84,6 +84,12 @@ def extract_tokens(filename, index=None, episode_index=None):
     if ep_prefix_match:
         tokens["episode"] = ep_prefix_match.group(1).zfill(2)
 
+        # Anything left of the Ep. match is the series title
+        left = name[:ep_prefix_match.start()].replace('.', ' ').replace('_', ' ').strip(' -')
+        if left:
+            tokens["title"] = re.sub(r'\s+', ' ', left).strip()
+
+        # Anything right of the match is the episode title
         remainder = name[ep_prefix_match.end():]
         remainder_clean = remainder.replace('.', ' ').replace('_', ' ').strip(' -')
         episode_title, _ = _split_at_metadata(remainder_clean)
