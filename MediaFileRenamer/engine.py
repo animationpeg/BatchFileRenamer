@@ -56,10 +56,10 @@ def get_all_tokens(files):
 
     return sorted(found_tokens)
 
-def get_sample_tokens(files) -> dict:
+def get_sample_tokens(files: list[str]) -> dict:
     # Return extracted tokens from the first file in the list. used by the GUI to populate & highlight the token panel
     if not files:
-        return
+        return {}
     return extract_tokens(files[0], index=1)
         
 def process_files(files, template):

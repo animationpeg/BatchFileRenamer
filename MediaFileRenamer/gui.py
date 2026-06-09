@@ -103,6 +103,13 @@ class RenamerApp(QWidget):
     # Refresh token input fields with found tokens, and highlight the fields in different colours
     # -------------------------
     def refresh_token_panel(self):
+        if not hasattr(self, "files") or not self.files:
+            # Clear and gray out all the fields when no fiels are loaded
+            for input_field in self.token_inputs.values():
+                input_field.setText("")
+                input_field.setStyleSheet("background-color: #f0f0f0")
+            return
+
         # Populate and highlight token fields based on first loaded file.
         sample_tokens = get_sample_tokens(self.files)
         for key, input_field in self.token_inputs.items():
