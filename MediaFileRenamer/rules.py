@@ -45,6 +45,16 @@ _BARE_EP_PATTERN = re.compile(r'(?<!\d)(\d{1,3})\s*$')
 _SE_DOT_PATTERN = re.compile(r'^(\d{1,2})\.(\d{1,2})\s*[-–]?\s*')
 # Detects "Ep.01", "Ep. 01", "EP.1" etc. at the start of the filename
 _EP_PREFIX_PATTERN = re.compile(r'Ep\.\s*(\d{1,3})\s*[-–]?\s*', re.IGNORECASE)
+# Matches "Season 1 Episode 1", "Season 01 Episode 01" etc.
+_SE_WORD_PATTERN = re.compile(
+    r'Season\s*(\d{1,2})\s*Episode\s*(\d{1,2})',
+    re.IGNORECASE
+)
+# Matches compact season+episode like 101, 201, 1001 (S01E01, S02E01, S10E01)
+# Must be word-bounded to avoid matching years or other numbers
+_SE_COMPACT_PATTERN = re.compile(
+    r'(?<!\d)(\d{1,2})(\d{2})(?!\d)'
+)
 
 def _is_metadata_token(word: str) -> bool:
     # Return True if a single word looks like a technical metadata token.
@@ -96,6 +106,44 @@ def extract_tokens(filename, index=None, episode_index=None):
         tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
 
         res_match = re.search(r'(\d{3,4}p)', remainder_clean, re.IGNORECASE)
+        if res_match:
+            tokens["resolution"] = res_match.group(1)
+    
+    # -----------------------------------------------------------------------
+    # BRANCH E: Written out format e.g. "{title} Season 01 Episode 01 - {Episode_Title}"
+    # -----------------------------------------------------------------------
+    elif se_word_match := _SE_WORD_PATTERN.search(clean):
+        tokens["season"]  = se_word_match.group(1).zfill(2)
+        tokens["episode"] = se_word_match.group(2).zfill(2)
+
+        left  = clean[:se_word_match.start()].strip(' -')
+        right = clean[se_word_match.end():].strip(' -')
+
+        tokens["title"] = re.sub(r'\s+', ' ', left).strip()
+
+        episode_title, _ = _split_at_metadata(right)
+        tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
+
+        res_match = re.search(r'(\d{3,4}p)', right, re.IGNORECASE)
+        if res_match:
+            tokens["resolution"] = res_match.group(1)
+
+    # -----------------------------------------------------------------------
+    # BRANCH F: Compact format e.g. 101 = S01E01, 201 = S02E01, 1001 = S10E01
+    # -----------------------------------------------------------------------
+    elif se_compact_match := _SE_COMPACT_PATTERN.search(clean):
+        tokens["season"]  = se_compact_match.group(1).zfill(2)
+        tokens["episode"] = se_compact_match.group(2).zfill(2)
+
+        left  = clean[:se_compact_match.start()].strip(' -')
+        right = clean[se_compact_match.end():].strip(' -')
+
+        tokens["title"] = re.sub(r'\s+', ' ', left).strip()
+
+        episode_title, _ = _split_at_metadata(right)
+        tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
+
+        res_match = re.search(r'(\d{3,4}p)', right, re.IGNORECASE)
         if res_match:
             tokens["resolution"] = res_match.group(1)
 
