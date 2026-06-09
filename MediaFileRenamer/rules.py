@@ -53,8 +53,10 @@ _SE_WORD_PATTERN = re.compile(
 # Matches compact season+episode like 101, 201, 1001 (S01E01, S02E01, S10E01)
 # Must be word-bounded to avoid matching years or other numbers
 _SE_COMPACT_PATTERN = re.compile(
-    r'(?<!\d)(\d{1,2})(\d{2})(?!\d)'
+    r'(?<!\d)(\d{1,2})(\d{2})(?![\dp])'  # Exclude matches followed by p or another digit
 )
+# Detects title-NN-episode_title structure within a hyphen-separated string
+_HYPHEN_EP_PATTERN = re.compile(r'^(.+?)-(\d{1,3})-(.+)$')
 
 def _is_metadata_token(word: str) -> bool:
     # Return True if a single word looks like a technical metadata token.
@@ -128,40 +130,6 @@ def extract_tokens(filename, index=None, episode_index=None):
         if res_match:
             tokens["resolution"] = res_match.group(1)
 
-    # -----------------------------------------------------------------------
-    # BRANCH F: Compact format e.g. 101 = S01E01, 201 = S02E01, 1001 = S10E01
-    # -----------------------------------------------------------------------
-    elif se_compact_match := _SE_COMPACT_PATTERN.search(clean):
-        tokens["season"]  = se_compact_match.group(1).zfill(2)
-        tokens["episode"] = se_compact_match.group(2).zfill(2)
-
-        left  = clean[:se_compact_match.start()].strip(' -')
-        right = clean[se_compact_match.end():].strip(' -')
-
-        tokens["title"] = re.sub(r'\s+', ' ', left).strip()
-
-        episode_title, _ = _split_at_metadata(right)
-        tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
-
-        res_match = re.search(r'(\d{3,4}p)', right, re.IGNORECASE)
-        if res_match:
-            tokens["resolution"] = res_match.group(1)
-
-    # -----------------------------
-    # BRANCH C: season.episode prefix format e.g. "01.01 Episode Name.mkv"
-    # -----------------------------
-    elif se_dot_match and not _SE_PATTERN.search(clean):
-        tokens["season"]   = se_dot_match.group(1).zfill(2)
-        tokens["episode"]  = se_dot_match.group(2).zfill(2)
-
-        remainder = name[se_dot_match.end():]
-        remainder_clean = remainder.replace('.', ' ').replace('_', ' ').strip(' -')
-        episode_title, _ = _split_at_metadata(remainder_clean)
-        tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
-
-        res_match = re.search(r'(\d{3,4}p)', clean, re.IGNORECASE)
-        if res_match:
-            tokens["resolution"] = res_match.group(1)
     # -----------------------------
     # BRANCH A: TV Episode - SxxExx is the structural anchor
     # -----------------------------
@@ -195,38 +163,83 @@ def extract_tokens(filename, index=None, episode_index=None):
         if res_match:
             tokens["resolution"] = res_match.group(1)
     # -----------------------------
-    # BRANCH B: Film - Year is the structural anchor
+    # BRANCH C: season.episode prefix format e.g. "01.01 Episode Name.mkv"
     # -----------------------------
-    else:
-        # Prefer a bracketed year; fall back to a bare 4-digit year
-        year_match = (
-            re.search(r'[\(\[](19\d{2}|20\d{2})[\)\]]', clean)
-            or re.search(r'(?<!\d)(19\d{2}|20\d{2})(?!\d)', clean)
-            )
+    elif se_dot_match and not _SE_PATTERN.search(clean):
+        tokens["season"]   = se_dot_match.group(1).zfill(2)
+        tokens["episode"]  = se_dot_match.group(2).zfill(2)
 
-        if year_match:
-            tokens["year"] = year_match.group(1)
-            left  = clean[:year_match.start()].strip(' -')
-            right = clean[year_match.end():].strip(' -')
-        else:
-            # If no year present - split the whole string at the first metadata token
-            left, right = _split_at_metadata(clean)
-        
-        bare_ep_match = _BARE_EP_PATTERN.search(left)
-        if bare_ep_match:
-            tokens["episode"] = bare_ep_match.group(1).zfill(2)
-            left = left[:bare_ep_match.start()].strip(' -')
+        remainder = name[se_dot_match.end():]
+        remainder_clean = remainder.replace('.', ' ').replace('_', ' ').strip(' -')
+        episode_title, _ = _split_at_metadata(remainder_clean)
+        tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
 
-        tokens["title"] = re.sub(r'\s+', ' ', left).strip()
-
-        # The prefix before the first metadata token is the edition (e.g. "Directors Cut")
-        edition, meta_tail = _split_at_metadata(right)
-        if edition:
-            tokens["edition"] = re.sub(r'\s+', ' ', edition).strip()
-
-        res_match = re.search(r'(\d{3,4}p)', meta_tail, re.IGNORECASE)
+        res_match = re.search(r'(\d{3,4}p)', clean, re.IGNORECASE)
         if res_match:
             tokens["resolution"] = res_match.group(1)
+
+    # -----------------------------------------------------------------------
+    # BRANCH F: Compact format e.g. 101 = S01E01, 201 = S02E01
+    # -----------------------------------------------------------------------
+    else:
+        clean_no_brackets = re.sub(r'[\(\[][^\)\]]*[\)\]]', '', clean)
+        se_compact_match = _SE_COMPACT_PATTERN.search(clean_no_brackets)
+
+        if se_compact_match:
+            tokens["season"]  = se_compact_match.group(1).zfill(2)
+            tokens["episode"] = se_compact_match.group(2).zfill(2)
+
+            # Use match positions against clean_no_brackets for the split
+            left  = clean_no_brackets[:se_compact_match.start()].strip(' -')
+            right = clean_no_brackets[se_compact_match.end():].strip(' -')
+
+            tokens["title"] = re.sub(r'\s+', ' ', left).strip()
+
+            episode_title, _ = _split_at_metadata(right)
+            tokens["episode_title"] = re.sub(r'\s+', ' ', episode_title).strip()
+
+            res_match = re.search(r'(\d{3,4}p)', right, re.IGNORECASE)
+            if res_match:
+                tokens["resolution"] = res_match.group(1)
+
+        # -----------------------------
+        # BRANCH B: Film - Year is the structural anchor
+        # -----------------------------
+        else:
+            # Prefer a bracketed year; fall back to a bare 4-digit year
+            year_match = (
+                re.search(r'[\(\[](19\d{2}|20\d{2})[\)\]]', clean)
+                or re.search(r'(?<!\d)(19\d{2}|20\d{2})(?!\d)', clean)
+                )
+
+            if year_match:
+                tokens["year"] = year_match.group(1)
+                left  = clean[:year_match.start()].strip(' -')
+                right = clean[year_match.end():].strip(' -')
+            else:
+                # If no year present - split the whole string at the first metadata token
+                left, right = _split_at_metadata(clean_no_brackets)
+        
+            hyphen_ep_match = _HYPHEN_EP_PATTERN.search(left)
+            if hyphen_ep_match:
+                tokens["title"]         = hyphen_ep_match.group(1).strip()
+                tokens["episode"]       = hyphen_ep_match.group(2).zfill(2)
+                tokens["episode_title"] = hyphen_ep_match.group(3).strip()  # ← clean of brackets already
+            else:
+                bare_ep_match = _BARE_EP_PATTERN.search(left)
+                if bare_ep_match:
+                    tokens["episode"] = bare_ep_match.group(1).zfill(2)
+                    left = left[:bare_ep_match.start()].strip(' -')
+                tokens["title"] = re.sub(r'\s+', ' ', left).strip()
+
+            # The prefix before the first metadata token is the edition (e.g. "Directors Cut")
+            edition, meta_tail = _split_at_metadata(right)
+            if edition:
+                tokens["edition"] = re.sub(r'\s+', ' ', edition).strip()
+
+            res_match = re.search(r'(\d{3,4}p)', meta_tail, re.IGNORECASE)
+            if res_match:
+                tokens["resolution"] = res_match.group(1)
 
     # -----------------------------
     # DYNAMIC EPISODE FALLBACK
